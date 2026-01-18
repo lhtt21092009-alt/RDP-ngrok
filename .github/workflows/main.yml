@@ -1,4 +1,4 @@
-name: RDP-Ngrok-NRA
+name: RDP-Ngrok-NRA-Optimized
 
 on:
   workflow_dispatch:
@@ -9,56 +9,63 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Configure RDP Settings
+      - name: 1. Configure RDP & User
         run: |
+          # Bật RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
-          Restart-Service -Name TermService -Force
-
-      - name: Create RDP User
-        run: |
+          
+          # Tạo User với mật khẩu chuẩn bảo mật
           $username = "RDP"
-          $password = "Oibanoi874@"
+          $password = "Oibanoi874@" 
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) { Remove-LocalUser -Name $username }
           New-LocalUser -Name $username -Password $securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member $username
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
-
-      - name: Download & Install Ngoc Rong Awaken
-        run: |
-          $url = "https://rescdnft97vn.xfplayvn.com/apk/NgocRongAwakenver228.exe"
-          $outPath = "$env:TEMP\NgocRongAwaken.exe"
-          Write-Host "Đang tải Ngọc Rồng Awaken..."
-          Invoke-WebRequest -Uri $url -OutFile $outPath
           
-          Write-Host "Đang cài đặt game..."
-          # Chạy installer với tham số /S (Silent install)
-          Start-Process -FilePath $outPath -ArgumentList "/S" -Wait
-          Write-Host "Cài đặt hoàn tất!"
+          Restart-Service -Name TermService -Force
 
-      - name: Install & Configure Ngrok
-        run: |
-          choco install ngrok -y
-          ngrok config add-authtoken ${{ secrets.NGROK }}
-
-      - name: Start Ngrok Tunnel
+      - name: 2. Install & Start Ngrok (Get IP First)
         shell: pwsh
         run: |
+          choco install ngrok -y
+          ngrok config add-authtoken ${{ secrets.NGROK_AUTHTOKEN }}
           Start-Process ngrok -ArgumentList "tcp 3389"
           Start-Sleep -Seconds 10
           $ngrok_url = (Invoke-WebRequest -Uri http://127.0.0.1:4040/api/tunnels | ConvertFrom-Json).tunnels[0].public_url
           
           Write-Host "`n" + "="*30
           Write-Host "RDP ACCESS DETAILS"
-          Write-Host "Address: $ngrok_url"
+          Write-Host "Address : $ngrok_url"
           Write-Host "Username: RDP"
-          Write-Host "Password: oibanoi874"
-          Write-Host "Game: Da duoc cai dat vao o C"
+          Write-Host "Password: Oibanoi874@"
+          Write-Host "TRANG THAI: DANG TAI GAME TRONG NEN..."
           Write-Host "="*30 + "`n"
           
+          # Lưu URL vào môi trường để dùng cho bước sau
+          echo "NGROK_URL=$ngrok_url" >> $env:GITHUB_ENV
+
+      - name: 3. Download & Install Game (Background)
+        run: |
+          $url = "https://rescdnft97vn.xfplayvn.com/apk/NgocRongAwakenver228.exe"
+          $outPath = "$env:TEMP\NgocRongAwaken.exe"
+          
+          Write-Host "Dang tai game tu rescdnft97vn..."
+          Invoke-WebRequest -Uri $url -OutFile $outPath
+          
+          Write-Host "Dang cai dat am tham (Silent Install)..."
+          Start-Process -FilePath $outPath -ArgumentList "/S" -Wait
+          Write-Host "Hoan tat cai dat game!"
+
+      - name: 4. Keep Alive & Status Monitor
+        run: |
+          Write-Host "MAY AO DA SAN SANG - GAME DA CAI XONG"
+          Write-Host "Ket noi toi: $env:NGROK_URL"
+          
+          # Vòng lặp giữ máy sống
           while ($true) {
-              Write-Host "[$(Get-Date)] Runner is active - Connection: $ngrok_url"
+              $time = Get-Date -Format "HH:mm:ss"
+              Write-Host "[$time] Runner status: Running - Link: $env:NGROK_URL"
               Start-Sleep -Seconds 300
           }
