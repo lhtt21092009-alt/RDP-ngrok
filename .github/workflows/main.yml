@@ -1,4 +1,4 @@
-name: RDP-Tailscale-NRA-Ultimate
+name: RDP-Tailscale-NRA-Desktop
 
 on:
   workflow_dispatch:
@@ -9,14 +9,12 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: 1. Configure RDP & User
+      - name: 1. Cau hinh Windows & User
         run: |
-          # Bật Remote Desktop
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           
-          # Tạo User (Mật khẩu chuẩn bảo mật Windows)
           $username = "RDP"
           $password = "Oibanoi874@" 
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
@@ -25,52 +23,48 @@ jobs:
           Add-LocalGroupMember -Group "Administrators" -Member $username
           Restart-Service -Name TermService -Force
 
-      - name: 2. Install & Connect Tailscale
+      - name: 2. Cai dat & Ket noi Tailscale
         run: |
-          # Tải và cài đặt Tailscale
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           
-          # Kết nối vào mạng của bạn (Dùng Auth Key từ Secrets)
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-${{ github.run_id }}
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-game-runner
           
-          # Lấy IP Tailscale (Thử lại đến khi có IP)
           $tsIP = ""
-          for ($i=0; $i -lt 10; $i++) {
+          for ($i=0; $i -lt 12; $i++) {
               $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
               if ($tsIP) { break }
               Start-Sleep -Seconds 5
           }
           
-          Write-Host "`n" + "="*30
-          Write-Host "KET NOI RDP QUA TAILSCALE"
-          Write-Host "IP Address: $tsIP"
-          Write-Host "Username  : RDP"
-          Write-Host "Password  : Oibanoi874@"
-          Write-Host "="*30 + "`n"
+          Write-Host "IP CUA BAN: $tsIP"
           echo "TS_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: 3. Download & Install Game (Background)
+      - name: 3. Tai Game bang wget ra Desktop
         run: |
-          $url = "https://engagements.appsflyer.com/v1.0/c2s/click/app/nativepc/ngocrongawaken?af_js_web=true&af_ss_ver=2_10_0&af_media_source=Direct%20organic&af_campaign=nra_default_campaign&af_campaign_id=nra_default_campaign&af_channel=organic&af_ad=default_ad&af_adset=default_adset&utm_campaign_id=0&af_r=https%3A%2F%2Frescdnft97vn.xfplayvn.com%2Fapk%2FNgocRongAwakenver228.exe"
-          $outPath = "$env:TEMP\NgocRongAwaken.exe"
-          Write-Host "Dang tai game tu server xfplayvn..."
-          Invoke-WebRequest -Uri $url -OutFile $outPath -UseBasicParsing
+          # Duong dan den Desktop cua User RDP
+          $desktopPath = "C:\Users\RDP\Desktop"
           
-          Write-Host "Dang cai dat game..."
-          Start-Process -FilePath $outPath -ArgumentList "/S" -Wait
-          Write-Host "Cai dat hoan tat!"
+          # Tao thu muc Desktop neu chua co (de phong)
+          if (!(Test-Path $desktopPath)) { New-Item -ItemType Directory -Path $desktopPath }
+          
+          $url = "https://rescdnft97vn.xfplayvn.com/apk/NgocRongAwakenver228.exe"
+          $fileName = "NgocRongAwaken.exe"
+          $fullPath = Join-Path $desktopPath $fileName
+          
+          Write-Host "Dang tai game ra Desktop..."
+          # Su dung wget (alias cua Invoke-WebRequest trong PowerShell)
+          wget -Uri $url -OutFile $fullPath -UseBasicParsing
+          
+          Write-Host "File da nam o: $fullPath"
 
-      - name: 4. Final & Keep Alive
+      - name: 4. Duy tri may ao
         run: |
-          # Mở thư mục game để khi bạn login vào là thấy luôn
-          explorer "C:\Program Files (x86)\NgocRongAwaken"
-          Write-Host "May ao dang hoat dong tai IP: $env:TS_IP"
-          
+          Write-Host "Login RDP: $env:TS_IP | User: RDP | Pass: Oibanoi874@"
           while ($true) {
-              $time = Get-Date -Format "HH:mm:ss"
-              Write-Host "[$time] Tailscale Active at $env:TS_IP"
+              $date = Get-Date -Format "HH:mm:ss"
+              Write-Host "[$date] Dang treo may..."
               Start-Sleep -Seconds 300
           }
